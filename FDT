@@ -1,0 +1,27 @@
+PROGRAM test
+    INTEGER G,N,MAT,SUM_GRID
+    INTEGER,DIMENSION(:),ALLOCATABLE::ARY_GRID
+    REAL,DIMENSION(:),ALLOCATABLE::ARY_L,ARY_DELTAL
+    OPEN(1,FILE='test',ACTION='read')
+    OPEN(2,FILE='output',ACTION='write')
+!读取材料区个数
+    READ(1,100) MAT
+100 FORMAT(I5)
+!读取各个材料区的网格数
+    ALLOCATE(ARY_GRID(MAT))
+    READ(1,*) (ARY_GRID(i),i=1,MAT)
+!读取各个材料区的长度
+    ALLOCATE(ARY_L(MAT))
+    READ(1,*) (ARY_L(i),i=1,MAT)
+!总网格数
+    SUM_GRID=0
+    DO i=1,MAT
+        SUM_GRID=SUM_GRID+ARY_GRID(i)
+    ENDDO
+!网格区间长度
+    ALLOCATE(ARY_DELTAL(MAT))
+    DO i=1,MAT
+        ARY_DELTAL(i)=ARY_L(i)/ARY_GRID(i)
+    ENDDO
+END
+  
