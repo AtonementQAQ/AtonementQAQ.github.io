@@ -9,7 +9,7 @@ PROGRAM test
         MATRIX_C(i)=MATRIX_A(i,i+1)
     ENDDO
     DO i=1,4
-        IF i=1 THEN
+        IF i==1 THEN
             MATRIX_U(i)=MATRIX_A(i,i)
             MATRIX_Y(i)=MATRIX_D(i)
         ELSE
@@ -19,10 +19,11 @@ PROGRAM test
         END IF
     ENDDO
     DO i=4,1,-1
-        IF i=4 THEN
+        IF i==4 THEN
             MATRIX_X(i)=MATRIX_Y(i)/MATRIX_U(i)
         ELSE
             MATRIX_X(i)=(MATRIX_Y(i)-MATRIX_C(i)*MATRIX_X(i+1))/MATRIX_U(i)
     ENDDO
+    WRITE(2,*) (MATRIX_X(i),i=1,4)
 END
   
