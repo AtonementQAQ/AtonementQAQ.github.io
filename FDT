@@ -1,27 +1,61 @@
 PROGRAM test
-    INTEGER G,N,MAT,SUM_GRID
+    INTEGER::G,NMAT,NGRID
     INTEGER,DIMENSION(:),ALLOCATABLE::ARY_GRID
-    REAL,DIMENSION(:),ALLOCATABLE::ARY_L,ARY_DELTAL
-    OPEN(1,FILE='test',ACTION='read')
-    OPEN(2,FILE='output',ACTION='write')
-!读取材料区个数
-    READ(1,100) MAT
+    REAL::keff,EPSILONK,EPSILONF
+    REAL,DIMENSION(:),ALLOCATABLE::ARY_L,ARY_DELTAL,ARY_PHI
+    REAL,DIMENSION(:,:),ALLOCATABLE::MATRIX_SIGMAT,MATRIX_SIGMAF,MATRIX_SIGMAS,MATRIX_CHI,MATRIX_NU
+!数据读取
+    OPEN(1,FILE='input',ACTION='READ')
+    OPEN(2,FILE='output',ACTION='WRITE')
+    READ(1,100) G
+    READ(1,100) NMAT
+    ALLOCATE(ARY_L(NMAT))
+    READ(1,*) (ARY_L(i),i=1,NMAT)
+    ALLOCATE(ARY_GRID(NMAT))
+    READ(1,*) (ARY_GRID(i),i=1,NMAT)
 100 FORMAT(I5)
-!读取各个材料区的网格数
-    ALLOCATE(ARY_GRID(MAT))
-    READ(1,*) (ARY_GRID(i),i=1,MAT)
-!读取各个材料区的长度
-    ALLOCATE(ARY_L(MAT))
-    READ(1,*) (ARY_L(i),i=1,MAT)
-!总网格数
-    SUM_GRID=0
-    DO i=1,MAT
-        SUM_GRID=SUM_GRID+ARY_GRID(i)
+    ALLOCATE(MATRIX_SIGMAT(NMAT,G),MATRIX_SIGMAF(NMAT,G),MATRIX_SIGMAS(NMAT*G,G),MATRIX_CHI(NMAT,G),MATRIX_NU(NMAT,G))
+    DO i=1,NMAT
+        READ(1,*)
+        READ(1,*) (MATRIX_SIGMAT(i,j),j=1,G)
+        READ(1,*) (MATRIX_SIGMAF(i,j),j=1,G)
+        DO n=1,G
+            READ(1,*) (MATRIX_SIGMAS(4*i-4+n,j),j=1,G)
+        ENDDO
+        READ(1,*) (MATRIX_CHI(i,j),j=1,G)
+        READ(1,*) (MATRIX_NU(i,j),j=1,G)
     ENDDO
+    WRITE(2,*) 'L:'
+    WRITE(2,200) (ARY_L(i),i=1,NMAT)
+    WRITE(2,*) 'GRID:'
+    WRITE(2,300) (ARY_GRID(i),i=1,NMAT)
+    WRITE(2,*) 'SIGMAT:'
+    WRITE(2,200) ((MATRIX_SIGMAT(i,j),j=1,G),i=1,NMAT)
+    WRITE(2,*) 'SIGMAF:'
+    WRITE(2,200) ((MATRIX_SIGMAF(i,j),j=1,G),i=1,NMAT)
+    WRITE(2,*) 'SIGMAS:'
+    WRITE(2,200) ((MATRIX_SIGMAS(i,j),j=1,G),i=1,NMAT*G)
+    WRITE(2,*) 'CHI:'
+    WRITE(2,200) ((MATRIX_CHI(i,j),j=1,G),i=1,NMAT)
+    WRITE(2,*) 'NU:'
+    WRITE(2,200) ((MATRIX_NU(i,j),j=1,G),i=1,NMAT)
+200 FORMAT(1X,<G>E12.5)
+300 FORMAT(1X,<G>I5)
 !网格区间长度
-    ALLOCATE(ARY_DELTAL(MAT))
-    DO i=1,MAT
+    ALLOCATE(ARY_DELTAL(NMAT))
+    DO i=1,NMAT
         ARY_DELTAL(i)=ARY_L(i)/ARY_GRID(i)
     ENDDO
+!总网格数
+    NGRID=0
+    DO i=1,NMAT
+        NGRID=NGRID+ARY_GRID(i)
+    ENDDO
+!裂变源迭代
+    ALLOCATE(ARY_PHI(NGRID*G-G))
+    DO WHILE(EPSILONK<=0.1 .AND. EPSILONF<=0.1)
+        
+    ENDDO
+    
 END
   
