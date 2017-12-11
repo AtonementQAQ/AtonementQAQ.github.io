@@ -1,9 +1,9 @@
 PROGRAM test
     INTEGER::G,NMAT,NGRID
-    INTEGER,DIMENSION(:),ALLOCATABLE::ARY_GRID
+    INTEGER,DIMENSION(:),ALLOCATABLE::ARY_GRID,ARY_NGRID
     REAL::keff,EPSILONK,EPSILONF
-    REAL,DIMENSION(:),ALLOCATABLE::ARY_L,ARY_DELTAL,ARY_PHI
-    REAL,DIMENSION(:,:),ALLOCATABLE::MATRIX_SIGMAT,MATRIX_SIGMAF,MATRIX_SIGMAS,MATRIX_CHI,MATRIX_NU
+    REAL,DIMENSION(:),ALLOCATABLE::ARY_L,ARY_DELTAL,ARY_PHI,ARY_F
+    REAL,DIMENSION(:,:),ALLOCATABLE::MATRIX_SIGMAT,MATRIX_SIGMAF,MATRIX_SIGMAS,MATRIX_CHI,MATRIX_NU,MATRIX_TEMPT,MATRIX_TEMPF,MATRIX_TEMPS,MATRIX_TEMPCHI,MATRIX_TEMPNU
 !数据读取
     OPEN(1,FILE='input',ACTION='READ')
     OPEN(2,FILE='output',ACTION='WRITE')
@@ -14,48 +14,138 @@ PROGRAM test
     ALLOCATE(ARY_GRID(NMAT))
     READ(1,*) (ARY_GRID(i),i=1,NMAT)
 100 FORMAT(I5)
-    ALLOCATE(MATRIX_SIGMAT(NMAT,G),MATRIX_SIGMAF(NMAT,G),MATRIX_SIGMAS(NMAT*G,G),MATRIX_CHI(NMAT,G),MATRIX_NU(NMAT,G))
+    !总网格数
+    NGRID=0
+    ALLOCATE(ARY_NGRID(NMAT))
+    DO i=1,NMAT
+        NGRID=NGRID+ARY_GRID(i)
+        ARY_NGRID(i)=NGRID
+    ENDDO
+    ALLOCATE(MATRIX_TEMPT(NMAT,G),MATRIX_TEMPF(NMAT,G),MATRIX_TEMPS(NMAT*G,G),MATRIX_TEMPCHI(NMAT,G),MATRIX_TEMPNU(NMAT,G))
+    ALLOCATE(MATRIX_SIGMAT(NGRID,G),MATRIX_SIGMAF(NGRID,G),MATRIX_SIGMAS(NGRID*G,G),MATRIX_CHI(NGRID,G),MATRIX_NU(NGRID,G))
+!读取总截面   
     DO i=1,NMAT
         READ(1,*)
-        READ(1,*) (MATRIX_SIGMAT(i,j),j=1,G)
-        READ(1,*) (MATRIX_SIGMAF(i,j),j=1,G)
+        READ(1,*) (MATRIX_TEMPT(i,j),j=1,G)
+        READ(1,*) (MATRIX_TEMPF(i,j),j=1,G)
         DO n=1,G
-            READ(1,*) (MATRIX_SIGMAS(4*i-4+n,j),j=1,G)
+            READ(1,*) (MATRIX_TEMPS(4*i-4+n,j),j=1,G)
         ENDDO
-        READ(1,*) (MATRIX_CHI(i,j),j=1,G)
-        READ(1,*) (MATRIX_NU(i,j),j=1,G)
+        READ(1,*) (MATRIX_TEMPCHI(i,j),j=1,G)
+        READ(1,*) (MATRIX_TEMPNU(i,j),j=1,G)
     ENDDO
+    DO i=1,G
+        DO j=1,NGRID
+            IF (j<=ARY_NGRID(1)) THEN
+            MATRIX_SIGMAT(j,i)=MATRIX_TEMPT(1,i)
+            ELSE
+                DO n=2,NMAT
+                    IF (j>ARY_NGRID(n-1) .AND. j<=ARY_NGRID(n)) MATRIX_SIGMAT(j,i)=MATRIX_TEMPT(n,i)
+                ENDDO
+            ENDIF
+        ENDDO
+    ENDDO
+    DEALLOCATE(MATRIX_TEMPT)
+    DO i=1,G
+        DO j=1,NGRID
+            IF (j<=ARY_NGRID(1)) THEN
+            MATRIX_SIGMAF(j,i)=MATRIX_TEMPF(1,i)
+            ELSE
+                DO n=2,NMAT
+                    IF (j>ARY_NGRID(n-1) .AND. j<=ARY_NGRID(n)) MATRIX_SIGMAF(j,i)=MATRIX_TEMPF(n,i)
+                ENDDO
+            ENDIF
+        ENDDO
+    ENDDO
+    DEALLOCATE(MATRIX_TEMPF)
+    DO i=1,G
+        DO j=1,NMAT
+            IF (j==1) THEN
+                MATRIX_SIGMAS(1:G,i)=MATRIX_TEMPS(1:G,i)
+                DO n=1,ARY_GRID(1)-1
+                    MATRIX_SIGMAS((n*G+1):(n+1)*G,i)=MATRIX_SIGMAS(1:G,i)
+                ENDDO
+            ELSE
+                DO n=1,ARY_GRID(j)
+                    MATRIX_SIGMAS(((ARY_NGRID(j-1)+n-1)*G+1):(ARY_NGRID(j)+n-1)*G,i)=MATRIX_TEMPS(((j-1)*G+1):j*G,i)
+                ENDDO
+            ENDIF
+        ENDDO
+    ENDDO
+    DEALLOCATE(MATRIX_TEMPS)
+    DO i=1,G
+        DO j=1,NGRID
+            IF (j<=ARY_NGRID(1)) THEN
+            MATRIX_CHI(j,i)=MATRIX_TEMPCHI(1,i)
+            ELSE
+                DO n=2,NMAT
+                    IF (j>ARY_NGRID(n-1) .AND. j<=ARY_NGRID(n)) MATRIX_CHI(j,i)=MATRIX_TEMPCHI(n,i)
+                ENDDO
+            ENDIF
+        ENDDO
+    ENDDO
+    DEALLOCATE(MATRIX_TEMPCHI)
+    DO i=1,G
+        DO j=1,NGRID
+            IF (j<=ARY_NGRID(1)) THEN
+            MATRIX_NU(j,i)=MATRIX_TEMPNU(1,i)
+            ELSE
+                DO n=2,NMAT
+                    IF (j>ARY_NGRID(n-1) .AND. j<=ARY_NGRID(n)) MATRIX_NU(j,i)=MATRIX_TEMPNU(n,i)
+                ENDDO
+            ENDIF
+        ENDDO
+    ENDDO
+    DEALLOCATE(MATRIX_TEMPNU)
+!输出
     WRITE(2,*) 'L:'
     WRITE(2,200) (ARY_L(i),i=1,NMAT)
     WRITE(2,*) 'GRID:'
     WRITE(2,300) (ARY_GRID(i),i=1,NMAT)
+    WRITE(2,*) 'NGRID:'
+    WRITE(2,300) (ARY_NGRID(i),i=1,NMAT)
     WRITE(2,*) 'SIGMAT:'
-    WRITE(2,200) ((MATRIX_SIGMAT(i,j),j=1,G),i=1,NMAT)
+    WRITE(2,200) ((MATRIX_SIGMAT(i,j),j=1,G),i=1,NGRID)
     WRITE(2,*) 'SIGMAF:'
-    WRITE(2,200) ((MATRIX_SIGMAF(i,j),j=1,G),i=1,NMAT)
+    WRITE(2,200) ((MATRIX_SIGMAF(i,j),j=1,G),i=1,NGRID)
     WRITE(2,*) 'SIGMAS:'
-    WRITE(2,200) ((MATRIX_SIGMAS(i,j),j=1,G),i=1,NMAT*G)
-    WRITE(2,*) 'CHI:'
-    WRITE(2,200) ((MATRIX_CHI(i,j),j=1,G),i=1,NMAT)
-    WRITE(2,*) 'NU:'
-    WRITE(2,200) ((MATRIX_NU(i,j),j=1,G),i=1,NMAT)
+    WRITE(2,200) ((MATRIX_SIGMAS(i,j),j=1,G),i=1,NGRID*G)
+    WRITE(2,*) 'SIGMACHI:'
+    WRITE(2,200) ((MATRIX_CHI(i,j),j=1,G),i=1,NGRID)
+    WRITE(2,*) 'SIGMANU:'
+    WRITE(2,200) ((MATRIX_NU(i,j),j=1,G),i=1,NGRID)
 200 FORMAT(1X,<G>E12.5)
 300 FORMAT(1X,<G>I5)
 !网格区间长度
-    ALLOCATE(ARY_DELTAL(NMAT))
-    DO i=1,NMAT
-        ARY_DELTAL(i)=ARY_L(i)/ARY_GRID(i)
+    ALLOCATE(ARY_DELTAL(NGRID))
+    DO i=1,NGRID
+        IF (i<=ARY_NGRID(1)) THEN
+            ARY_DELTAL(i)=ARY_L(1)/ARY_GRID(1)
+        ELSE
+            DO j=2,NMAT
+                IF (i>ARY_NGRID(j-1) .AND. i<=ARY_NGRID(j)) ARY_DELTAL(i)=ARY_L(j)/ARY_GRID(j)
+            ENDDO
+        ENDIF
     ENDDO
-!总网格数
-    NGRID=0
-    DO i=1,NMAT
-        NGRID=NGRID+ARY_GRID(i)
-    ENDDO
+    WRITE(2,*) 'deltaL:'
+    WRITE(2,400) (ARY_DELTAL(i),i=1,NGRID)
+400 FORMAT(1X,E12.5)
 !裂变源迭代
-    ALLOCATE(ARY_PHI(NGRID*G-G))
-    DO WHILE(EPSILONK<=0.1 .AND. EPSILONF<=0.1)
-        
-    ENDDO
-    
+    ALLOCATE(ARY_PHI(NGRID*G-G),ARY_F(NGRID*G-G))
+    !设置迭代初值
+    keff=1;ARY_PHI=1
+    WRITE(2,*) 'PHI:'
+    WRITE(2,400) (ARY_PHI(i),i=1,NGRID*G-G)
+!    DO WHILE(EPSILONK<=0.1 .AND. EPSILONF<=0.1)
+        DO i=1,G
+            DO j=1,NGRID-1
+                DO n=1,G
+                    ARY_F((i-1)*(NGRID-1)+j)=ARY_F((i-1)*(NGRID-1)+j)+0.5*(MATRIX_CHI(j,i)*MATRIX_NU(j,i)*MATRIX_SIGMAF(j,n)*ARY_DELTAL(j)+MATRIX_CHI(j+1,i)*MATRIX_NU(j+1,i)*MATRIX_SIGMAF(j+1,n)*ARY_DELTAL(j+1))*ARY_PHI((n-1)*(NGRID-1)+j)
+                ENDDO
+            ENDDO
+        ENDDO
+!    ENDDO
+    WRITE(2,*) 'F:'
+    WRITE(2,400) (ARY_F(i),i=1,NGRID*G-G)
 END
   
