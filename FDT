@@ -1,8 +1,8 @@
 PROGRAM test
     INTEGER::G,NMAT,NGRID,BCL,BCR
     INTEGER,DIMENSION(:),ALLOCATABLE::ARY_GRID,ARY_NGRID
-    REAL::keff,EPSILONK,EPSILONF,BETAL,BETAR
-    REAL,DIMENSION(:),ALLOCATABLE::ARY_L,ARY_DELTAL,ARY_PHI,ARY_F,ARY_S,ARY_Q,ARY_A,ARY_U,ARY_C,ARY_Y
+    REAL::keff,EPSILONK,EPSILONF,BETAL,BETAR,EPSILONPHI
+    REAL,DIMENSION(:),ALLOCATABLE::ARY_L,ARY_DELTAL,ARY_PHI,ARY_F,ARY_S,ARY_Q,ARY_A,ARY_U,ARY_C,ARY_Y,ARY_TEMPPHI
     REAL,DIMENSION(:,:),ALLOCATABLE::MATRIX_SIGMAT,MATRIX_SIGMAF,MATRIX_SIGMAS,MATRIX_CHI,MATRIX_NU,MATRIX_TEMPT,MATRIX_TEMPF,MATRIX_TEMPS,MATRIX_TEMPCHI,MATRIX_TEMPNU,MATRIX_TEMPDG,MATRIX_DG
 !数据读取
     OPEN(1,FILE='input',ACTION='READ')
@@ -112,6 +112,13 @@ PROGRAM test
     DEALLOCATE(MATRIX_TEMPNU)
     READ(1,*)
     READ(1,*) BCL,BCR
+    IF (BCL==1 .AND. BCR/=1) THEN
+        READ(1,*) BETAL
+    ELSE IF (BCL/=1 .AND. BCR==1) THEN
+        READ(1,*) BETAR
+    ELSE IF (BCL==1 .AND. BCR==1) THEN
+        READ(1,*) BETAL,BETAR
+    END IF
 !输出
     WRITE(2,*) 'L:'
     WRITE(2,200) (ARY_L(i),i=1,NMAT)
@@ -148,45 +155,62 @@ PROGRAM test
     WRITE(2,400) (ARY_DELTAL(i),i=1,NGRID)
 400 FORMAT(1X,E12.5)
 !裂变源迭代
-    ALLOCATE(ARY_PHI(NGRID*G-G),ARY_F(NGRID*G-G),ARY_S(NGRID*G-G),ARY_Q(NGRID*G-G))
-!    ALLOCATE(ARY_L(2:(NGRID-1)),ARY_U(NGRID-1),ARY_C(NGRID-2),ARY_Y(NGRID-1))
+    ALLOCATE(ARY_PHI(NGRID*G-G),ARY_F(NGRID*G-G),ARY_S(NGRID*G-G),ARY_Q(NGRID*G-G),ARY_TEMPPHI(NGRID*G-G))
+    ALLOCATE(ARY_A(2:(NGRID-1)),ARY_U(NGRID-1),ARY_C(NGRID-2),ARY_Y(NGRID-1))
     !设置迭代初值
-    keff=1;ARY_PHI=1
-    WRITE(2,*) 'PHI:'
-    WRITE(2,400) (ARY_PHI(i),i=1,NGRID*G-G)
+    keff=1;ARY_PHI=1;EPSILONPHI=10
 !    DO WHILE(EPSILONK<=0.1 .AND. EPSILONF<=0.1)
         DO i=1,G
-            DO j=1,NGRID-1
-                DO n=1,G
-                    ARY_F((i-1)*(NGRID-1)+j)=ARY_F((i-1)*(NGRID-1)+j)+0.5*(MATRIX_CHI(j,i)*MATRIX_NU(j,i)*MATRIX_SIGMAF(j,n)*ARY_DELTAL(j)+MATRIX_CHI(j+1,i)*MATRIX_NU(j+1,i)*MATRIX_SIGMAF(j+1,n)*ARY_DELTAL(j+1))*ARY_PHI((n-1)*(NGRID-1)+j)
-                    IF (n==i) THEN
-                        ARY_S((i-1)*(NGRID-1)+j)=ARY_S((i-1)*(NGRID-1)+j)
+            DO WHILE(EPSILONPHI>=0.1)
+                ARY_TEMPPHI=ARY_PHI;EPSILONPHI=0
+                WRITE(2,*) 'TEMPPHI:'
+                WRITE(2,400) (ARY_TEMPPHI(j),j=1,NGRID*G-G)
+                DO j=1,NGRID-1
+                    DO n=1,G
+                        ARY_F((i-1)*(NGRID-1)+j)=ARY_F((i-1)*(NGRID-1)+j)+0.5*(MATRIX_CHI(j,i)*MATRIX_NU(j,i)*MATRIX_SIGMAF(j,n)*ARY_DELTAL(j)+MATRIX_CHI(j+1,i)*MATRIX_NU(j+1,i)*MATRIX_SIGMAF(j+1,n)*ARY_DELTAL(j+1))*ARY_PHI((n-1)*(NGRID-1)+j)
+                        IF (n==i) THEN
+                            ARY_S((i-1)*(NGRID-1)+j)=ARY_S((i-1)*(NGRID-1)+j)
+                        ELSE 
+                            ARY_S((i-1)*(NGRID-1)+j)=ARY_S((i-1)*(NGRID-1)+j)+0.5*(MATRIX_SIGMAS(((j-1)*NMAT+i),n)*ARY_DELTAL(j)+MATRIX_SIGMAS((j*NMAT+i),n)*ARY_DELTAL(j+1))*ARY_PHI((n-1)*(NGRID-1)+j)
+                        ENDIF
+                        ARY_Q((i-1)*(NGRID-1)+j)=ARY_F((i-1)*(NGRID-1)+j)+ARY_S((i-1)*(NGRID-1)+j)
+                    ENDDO
+                    IF (j==1) THEN
+                        ARY_C(j)=-MATRIX_DG(j+1,i)/ARY_DELTAL(j+1)
+                        ARY_Y(j)=ARY_Q((i-1)*(NGRID-1)+j)
+                        !边界条件判定
+                        IF (BCL==1) THEN
+                            ARY_U(j)=((MATRIX_SIGMAT(j,i)-MATRIX_SIGMAS(((j-1)*NMAT+i),i))*ARY_DELTAL(j)+(MATRIX_SIGMAT(j+1,i)-MATRIX_SIGMAS((j*NMAT+i),i))*ARY_DELTAL(j+1))/2+MATRIX_DG(j,i)/ARY_DELTAL(j)+MATRIX_DG(j+1,i)/ARY_DELTAL(j+1)-(MATRIX_DG(j,i)/ARY_DELTAL(j)+((1-BETAL)/(2*(1+BETAL))))
+                        ELSE IF (BCL==2) THEN
+                            ARY_U(j)=((MATRIX_SIGMAT(j,i)-MATRIX_SIGMAS(((j-1)*NMAT+i),i))*ARY_DELTAL(j)+(MATRIX_SIGMAT(j+1,i)-MATRIX_SIGMAS((j*NMAT+i),i))*ARY_DELTAL(j+1))/2+MATRIX_DG(j,i)/ARY_DELTAL(j)+MATRIX_DG(j+1,i)/ARY_DELTAL(j+1)
+                        ENDIF
+                    ELSE IF (j==NGRID-1) THEN
+                        ARY_A(j)=-MATRIX_DG(j,i)/(ARY_DELTAL(j)*ARY_U(j-1))
+                        IF (BCR==1) THEN
+                            ARY_U(j)=((MATRIX_SIGMAT(j,i)-MATRIX_SIGMAS(((j-1)*NMAT+i),i))*ARY_DELTAL(j)+(MATRIX_SIGMAT(j+1,i)-MATRIX_SIGMAS((j*NMAT+i),i))*ARY_DELTAL(j+1))/2+MATRIX_DG(j,i)/ARY_DELTAL(j)+MATRIX_DG(j+1,i)/ARY_DELTAL(j+1)-MATRIX_DG(j+1,i)/(ARY_DELTAL(j+1)*((1-BETAR)*ARY_DELTAL(j+1)/MATRIX_DG(j+1,i)+1))-ARY_C(j-1)*ARY_A(j)
+                        ELSE IF (BCR==2) THEN
+                            ARY_U(j)=((MATRIX_SIGMAT(j,i)-MATRIX_SIGMAS(((j-1)*NMAT+i),i))*ARY_DELTAL(j)+(MATRIX_SIGMAT(j+1,i)-MATRIX_SIGMAS((j*NMAT+i),i))*ARY_DELTAL(j+1))/2+MATRIX_DG(j,i)/ARY_DELTAL(j)+MATRIX_DG(j+1,i)/ARY_DELTAL(j+1)-ARY_C(j-1)*ARY_A(j)
+                        ENDIF
+                        ARY_Y(j)=ARY_Q((i-1)*(NGRID-1)+j)-ARY_A(j)*ARY_Y(j-1)
                     ELSE
-                        ARY_S((i-1)*(NGRID-1)+j)=ARY_S((i-1)*(NGRID-1)+j)+0.5*(MATRIX_SIGMAS(((j-1)*NMAT+i),n)*ARY_DELTAL(j)+MATRIX_SIGMAS((j*NMAT+i),n)*ARY_DELTAL(j+1))*ARY_PHI((n-1)*(NGRID-1)+j)
-                    ENDIF
-                    ARY_Q((i-1)*(NGRID-1)+j)=ARY_F((i-1)*(NGRID-1)+j)+ARY_S((i-1)*(NGRID-1)+j)
+                        ARY_C(j)=-MATRIX_DG(j+1,i)/ARY_DELTAL(j+1)
+                        ARY_A(j)=-MATRIX_DG(j,i)/(ARY_DELTAL(j)*ARY_U(j-1))
+                        ARY_U(j)=((MATRIX_SIGMAT(j,i)-MATRIX_SIGMAS(((j-1)*NMAT+i),i))*ARY_DELTAL(j)+(MATRIX_SIGMAT(j+1,i)-MATRIX_SIGMAS((j*NMAT+i),i))*ARY_DELTAL(j+1))/2+MATRIX_DG(j,i)/ARY_DELTAL(j)+MATRIX_DG(j+1,i)/ARY_DELTAL(j+1)-ARY_C(j-1)*ARY_A(j)
+                        ARY_Y(j)=ARY_Q((i-1)*(NGRID-1)+j)-ARY_A(j)*ARY_Y(j-1)
+                    ENDIF           
                 ENDDO
-                IF (j==1) THEN
-                    !边界条件判定
-                    IF (BCL==1) THEN
-                        PRINT*,'请输入反照率β：'
-                        READ*,BETAL
-                        ARY_U(j)=((MATRIX_SIGNAT(j,i)-MATRIX_SIGMAS(((j-1)*NMAT+i),i))*ARY_DELTAL(j)+(MATRIX_SIGNAT(j+1,i)-MATRIX_SIGMAS((j*NMAT+i),i))*ARY_DELTAL(j+1))/2+MATRIX_DG(j,i)/ARY_DELTAL(j)+MATRIX_DG(j+1,i)/ARY_DELTAL(j+1)-(MATRIX_DG(j,i)/ARY_DELTAL(j)+((1-BETAL)/(2*(1+BETAL))))
-                    ELSE (BCL==2) THEN
-                        ARY_U(j)=((MATRIX_SIGNAT(j,i)-MATRIX_SIGMAS(((j-1)*NMAT+i),i))*ARY_DELTAL(j)+(MATRIX_SIGNAT(j+1,i)-MATRIX_SIGMAS((j*NMAT+i),i))*ARY_DELTAL(j+1))/2+MATRIX_DG(j,i)/ARY_DELTAL(j)+MATRIX_DG(j+1,i)/ARY_DELTAL(j+1)
-                    ENDIF
-                ELSE IF (j==NGRID-1) THEN
-                    IF (BCR==1) THEN
-                        PRINT*,'请输入反照率β：'
-                        READ*,BETAR
-                        ARY_U(j)=((MATRIX_SIGMAT(j,i)-MATRIX_SIGMAS(((j-1)*NMAT+i),i))*ARY_DELTAL(j)+(MATRIX_SIGNAT(j+1,i)-MATRIX_SIGMAS((j*NMAT+i),i))*ARY_DELTAL(j+1)))/2+MATRIX_DG(j,i)/ARY_DELTAL(j)+MATRIX_DG(j+1,i)/ARY_DELTAL(j+1)-MATRIX_DG(j+1)/(ARY_DELTAL(j+1)*((1-BETAR)*ARY_DELTAL(j+1)/MATRIX_DG(j+1)+1))
-                    ELSE (BCR==2) THEN
-                        ARY_U(j)=((MATRIX_SIGNAT(j,i)-MATRIX_SIGMAS(((j-1)*NMAT+i),i))*ARY_DELTAL(j)+(MATRIX_SIGNAT(j+1,i)-MATRIX_SIGMAS((j*NMAT+i),i))*ARY_DELTAL(j+1))/2+MATRIX_DG(j,i)/ARY_DELTAL(j)+MATRIX_DG(j+1,i)/ARY_DELTAL(j+1)
-                    ENDIF
-                ELSE
-                    ARY_U(j)=((MATRIX_SIGNAT(j,i)-MATRIX_SIGMAS(((j-1)*NMAT+i),i))*ARY_DELTAL(j)+(MATRIX_SIGNAT(j+1,i)-MATRIX_SIGMAS((j*NMAT+i),i))*ARY_DELTAL(j+1))/2+MATRIX_DG(j,i)/ARY_DELTAL(j)+MATRIX_DG(j+1,i)/ARY_DELTAL(j+1)
-                ENDIF           
-            ENDDO
+                DO j=NGRID-1,1,-1
+                    IF (j==NGRID-1) THEN
+                        ARY_PHI((i-1)*(NGRID-1)+j)=ARY_Y(j)/ARY_U(j)
+                    ELSE
+                        ARY_PHI((i-1)*(NGRID-1)+j)=(ARY_Y(j)-ARY_C(j)*ARY_PHI((i-1)*(NGRID-1)+j+1))/ARY_U(j)
+                    END IF
+                ENDDO
+                DO j=1,NGRID-1
+                    EPSILONPHI=EPSILONPHI+(ABS(ARY_PHI((i-1)*(NGRID-1)+j)-ARY_TEMPPHI((i-1)*(NGRID-1)+j)))**2
+                ENDDO
+                WRITE(2,*) EPSILONPHI
+            ENDDO    
         ENDDO
 !    ENDDO
     WRITE(2,*) 'F:'
@@ -195,5 +219,11 @@ PROGRAM test
     WRITE(2,400) (ARY_S(i),i=1,NGRID*G-G)
     WRITE(2,*) 'Q:'
     WRITE(2,400) (ARY_Q(i),i=1,NGRID*G-G)
-        END
+    WRITE(2,*) 'Y:'
+    WRITE(2,400) (ARY_Y(i),i=1,NGRID-1)
+    WRITE(2,*) 'U:'
+    WRITE(2,400) (ARY_U(i),i=1,NGRID-1)
+    WRITE(2,*) 'PHI:'
+    WRITE(2,400) (ARY_PHI(i),i=1,NGRID*G-G)
+END
   
