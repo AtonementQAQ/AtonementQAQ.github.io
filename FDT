@@ -1,10 +1,11 @@
 PROGRAM test
     INTEGER::G,NMAT,NGRID,BCL,BCR,COUNT
     INTEGER,DIMENSION(:),ALLOCATABLE::ARY_GRID,ARY_NGRID
-    REAL::KEFF,EPSILONK,EPSILONF,BETAL,BETAR,EPSILONPHI,TEMP,TEMP_KEFF,QN,QO,Y
+    REAL::KEFF,EPSILONK,EPSILONF,BETAL,BETAR,EPSILONPHI,TEMP,TEMP_KEFF,QN,QO,Y,TIME_BEGIN,TIME_END
     REAL,DIMENSION(:),ALLOCATABLE::ARY_L,ARY_DELTAL,ARY_PHI,ARY_F,ARY_S,ARY_Q,ARY_A,ARY_U,ARY_C,ARY_Y,ARY_TEMPPHI,ARY_TEMPF
-    REAL,DIMENSION(:,:),ALLOCATABLE::MATRIX_SIGMAT,MATRIX_SIGMAF,MATRIX_SIGMAS,MATRIX_CHI,MATRIX_NU,MATRIX_TEMPT,MATRIX_TEMPF,MATRIX_TEMPS,MATRIX_TEMPCHI,MATRIX_TEMPNU,MATRIX_TEMPDG,MATRIX_DG
+    REAL,DIMENSION(:,:),ALLOCATABLE::MATRIX_SIGMAT,MATRIX_SIGMAF,MATRIX_SIGMAS,MATRIX_CHI,MATRIX_TEMPT,MATRIX_TEMPF,MATRIX_TEMPS,MATRIX_TEMPCHI,MATRIX_TEMPDG,MATRIX_DG
 !数据读取
+    CALL CPU_TIME(TIME_BEGIN)
     OPEN(1,FILE='input',ACTION='READ')
     OPEN(2,FILE='output',ACTION='WRITE')
     READ(1,100) G
@@ -21,8 +22,8 @@ PROGRAM test
         NGRID=NGRID+ARY_GRID(i)
         ARY_NGRID(i)=NGRID
     ENDDO
-    ALLOCATE(MATRIX_TEMPT(NMAT,G),MATRIX_TEMPF(NMAT,G),MATRIX_TEMPS(NMAT*G,G),MATRIX_TEMPCHI(NMAT,G),MATRIX_TEMPNU(NMAT,G),MATRIX_TEMPDG(NMAT,G))
-    ALLOCATE(MATRIX_SIGMAT(NGRID,G),MATRIX_SIGMAF(NGRID,G),MATRIX_SIGMAS(NGRID*G,G),MATRIX_CHI(NGRID,G),MATRIX_NU(NGRID,G),MATRIX_DG(NGRID,G))
+    ALLOCATE(MATRIX_TEMPT(NMAT,G),MATRIX_TEMPF(NMAT,G),MATRIX_TEMPS(NMAT*G,G),MATRIX_TEMPCHI(NMAT,G),MATRIX_TEMPDG(NMAT,G))
+    ALLOCATE(MATRIX_SIGMAT(NGRID,G),MATRIX_SIGMAF(NGRID,G),MATRIX_SIGMAS(NGRID*G,G),MATRIX_CHI(NGRID,G),MATRIX_DG(NGRID,G))
 !读取材料参数   
     DO i=1,NMAT
         READ(1,*)
@@ -30,10 +31,9 @@ PROGRAM test
         READ(1,*) (MATRIX_TEMPT(i,j),j=1,G)
         READ(1,*) (MATRIX_TEMPF(i,j),j=1,G)
         DO n=1,G
-            READ(1,*) (MATRIX_TEMPS(4*i-4+n,j),j=1,G)
+            READ(1,*) (MATRIX_TEMPS(G*i-G+n,j),j=1,G)
         ENDDO
         READ(1,*) (MATRIX_TEMPCHI(i,j),j=1,G)
-        READ(1,*) (MATRIX_TEMPNU(i,j),j=1,G)
     ENDDO
     DO i=1,G
         DO j=1,NGRID
@@ -80,7 +80,7 @@ PROGRAM test
                 ENDDO
             ELSE
                 DO n=1,ARY_GRID(j)
-                    MATRIX_SIGMAS(((ARY_NGRID(j-1)+n-1)*G+1):(ARY_NGRID(j)+n-1)*G,i)=MATRIX_TEMPS(((j-1)*G+1):j*G,i)
+                    MATRIX_SIGMAS(((ARY_NGRID(j-1)+n-1)*G+1):(ARY_NGRID(j-1)+n)*G,i)=MATRIX_TEMPS(((j-1)*G+1):j*G,i)
                 ENDDO
             ENDIF
         ENDDO
@@ -98,18 +98,6 @@ PROGRAM test
         ENDDO
     ENDDO
     DEALLOCATE(MATRIX_TEMPCHI)
-    DO i=1,G
-        DO j=1,NGRID
-            IF (j<=ARY_NGRID(1)) THEN
-            MATRIX_NU(j,i)=MATRIX_TEMPNU(1,i)
-            ELSE
-                DO n=2,NMAT
-                    IF (j>ARY_NGRID(n-1) .AND. j<=ARY_NGRID(n)) MATRIX_NU(j,i)=MATRIX_TEMPNU(n,i)
-                ENDDO
-            ENDIF
-        ENDDO
-    ENDDO
-    DEALLOCATE(MATRIX_TEMPNU)
     READ(1,*)
     READ(1,*) BCL,BCR
     IF (BCL==1 .AND. BCR/=1) THEN
@@ -136,8 +124,6 @@ PROGRAM test
     WRITE(2,200) ((MATRIX_SIGMAS(i,j),j=1,G),i=1,NGRID*G)
     WRITE(2,*) 'CHI:'
     WRITE(2,200) ((MATRIX_CHI(i,j),j=1,G),i=1,NGRID)
-    WRITE(2,*) 'NU:'
-    WRITE(2,200) ((MATRIX_NU(i,j),j=1,G),i=1,NGRID)
 200 FORMAT(1X,<G>E12.5)
 300 FORMAT(1X,<G>I5)
 !网格区间长度
@@ -162,17 +148,19 @@ PROGRAM test
     DO i=1,G
         DO j=1,NGRID-1
             DO n=1,G
-                ARY_F((i-1)*(NGRID-1)+j)=ARY_F((i-1)*(NGRID-1)+j)+0.5*(MATRIX_CHI(j,i)*MATRIX_NU(j,n)*MATRIX_SIGMAF(j,n)*ARY_DELTAL(j)+MATRIX_CHI(j+1,i)*MATRIX_NU(j+1,n)*MATRIX_SIGMAF(j+1,n)*ARY_DELTAL(j+1))*ARY_PHI((n-1)*(NGRID-1)+j)
+                ARY_F((i-1)*(NGRID-1)+j)=ARY_F((i-1)*(NGRID-1)+j)+0.5*(MATRIX_CHI(j,i)*MATRIX_SIGMAF(j,n)*ARY_DELTAL(j)+MATRIX_CHI(j+1,i)*MATRIX_SIGMAF(j+1,n)*ARY_DELTAL(j+1))*ARY_PHI((n-1)*(NGRID-1)+j)
             ENDDO
         ENDDO
     ENDDO
     EPSILONK=10;EPSILONF=10
-    DO WHILE(EPSILONK>=0.1 .AND. EPSILONF>=0.1)
-        COUNT=0;EPSILONPHI=10;TEMP=10
-        DO WHILE(EPSILONPHI>=0.1)
+    DO WHILE(EPSILONK>=0.00001 .AND. EPSILONF>=0.00001)
+        COUNT=0;EPSILONPHI=10
+        WRITE(2,*) 'EPSILONPHI:'
+        !WRITE(*,*) 'EPSILONPHI:'
+        DO WHILE(EPSILONPHI>=0.00001)
             ARY_TEMPPHI=ARY_PHI;EPSILONPHI=0;ARY_S=0;ARY_Q=0
             DO i=1,G
-                ARY_A=0;ARY_U=0;ARY_ARY_C=0;ARY_Y=0
+                ARY_A=0;ARY_U=0;ARY_C=0;ARY_Y=0
                 DO j=1,NGRID-1
                     DO n=1,G
                         IF (n==i) THEN
@@ -180,8 +168,8 @@ PROGRAM test
                         ELSE 
                             ARY_S((i-1)*(NGRID-1)+j)=ARY_S((i-1)*(NGRID-1)+j)+0.5*(MATRIX_SIGMAS(((j-1)*G+i),n)*ARY_DELTAL(j)+MATRIX_SIGMAS((j*G+i),n)*ARY_DELTAL(j+1))*ARY_PHI((n-1)*(NGRID-1)+j)
                         ENDIF
-                        ARY_Q((i-1)*(NGRID-1)+j)=ARY_F((i-1)*(NGRID-1)+j)/keff+ARY_S((i-1)*(NGRID-1)+j)
                     ENDDO
+                    ARY_Q((i-1)*(NGRID-1)+j)=ARY_F((i-1)*(NGRID-1)+j)/KEFF+ARY_S((i-1)*(NGRID-1)+j)
                     IF (j==1) THEN
                         ARY_C(j)=-MATRIX_DG(j+1,i)/ARY_DELTAL(j+1)
                         ARY_Y(j)=ARY_Q((i-1)*(NGRID-1)+j)
@@ -222,17 +210,19 @@ PROGRAM test
 600 FORMAT(1X,4E12.5)
 700 FORMAT(1X,2E12.5)
             DO i=1,NGRID*G-G
-                EPSILONPHI=EPSILONPHI+SQRT(ABS(ARY_PHI(i)-ARY_TEMPPHI(i)))
-            ENDDO
-            WRITE(2,*) 'EPSILONPHI:' 
-            WRITE(2,400) EPSILONPHI
+                EPSILONPHI=EPSILONPHI+(ABS(ARY_PHI(i)-ARY_TEMPPHI(i)))
+            ENDDO 
+            COUNT=COUNT+1
+            WRITE(2,101) COUNT,EPSILONPHI
+            !WRITE(*,101) COUNT,EPSILONPHI
+101 FORMAT(I4,5X,E12.5)
         ENDDO
         !更新keff
         ARY_TEMPF=ARY_F
         DO i=1,G
             DO j=1,NGRID-1
                 DO n=1,G
-                    ARY_F((i-1)*(NGRID-1)+j)=ARY_F((i-1)*(NGRID-1)+j)+0.5*(MATRIX_CHI(j,i)*MATRIX_NU(j,n)*MATRIX_SIGMAF(j,n)*ARY_DELTAL(j)+MATRIX_CHI(j+1,i)*MATRIX_NU(j+1,n)*MATRIX_SIGMAF(j+1,n)*ARY_DELTAL(j+1))*ARY_PHI((n-1)*(NGRID-1)+j)
+                    ARY_F((i-1)*(NGRID-1)+j)=ARY_F((i-1)*(NGRID-1)+j)+0.5*(MATRIX_CHI(j,i)*MATRIX_SIGMAF(j,n)*ARY_DELTAL(j)+MATRIX_CHI(j+1,i)*MATRIX_SIGMAF(j+1,n)*ARY_DELTAL(j+1))*ARY_PHI((n-1)*(NGRID-1)+j)
                 ENDDO
             ENDDO
         ENDDO
@@ -241,20 +231,28 @@ PROGRAM test
         DO i=1,NGRID*G-G
             Y=MOD(i,NGRID-1)
             IF (Y==0)THEN
-                QN=QN+ARY_DELTAL(NGRID-1)*ARY_F(j)
-                QO=QO+ARY_DELTAL(NGRID-1)*ARY_TEMPF(j)
+                QN=QN+ARY_DELTAL(NGRID-1)*ARY_F(i)
+                QO=QO+ARY_DELTAL(NGRID-1)*ARY_TEMPF(i)
             ELSE
-                QN=QN+ARY_DELTAL(Y)*ARY_F(j)
-                QO=QO+ARY_DELTAL(Y)*ARY_TEMPF(j)
+                QN=QN+ARY_DELTAL(Y)*ARY_F(i)
+                QO=QO+ARY_DELTAL(Y)*ARY_TEMPF(i)
             ENDIF            
         ENDDO
         KEFF=TEMP_KEFF*QN/QO
+        WRITE(2,*) 'keff:',KEFF,'QN:',QN,'QO:',QO
         EPSILONK=ABS((KEFF-TEMP_KEFF)/KEFF)
         EPSILONF=MAXVAL(ABS((ARY_F-ARY_TEMPF)/ARY_F))
         WRITE(2,800) 'EPSILONK','EPSILONF' 
         WRITE(2,900) EPSILONK,EPSILONF
+        !WRITE(*,800) 'EPSILONK','EPSILONF' 
+        !WRITE(*,900) EPSILONK,EPSILONF
 800 FORMAT(1X,2A12)
 900 FORMAT(1X,2E12.5)
     ENDDO
+    CALL CPU_TIME(TIME_END)
+    WRITE(2,*) 'PHI:'
+    WRITE(2,400) (ARY_PHI(i),i=1,NGRID*G-G)
+    WRITE(2,*) 'Calculating time:',TIME_END-TIME_BEGIN
+    
 END
   
