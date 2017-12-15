@@ -15,7 +15,7 @@ PROGRAM test
     ALLOCATE(ARY_GRID(NMAT))
     READ(1,*) (ARY_GRID(i),i=1,NMAT)
 100 FORMAT(I5)
-    !总网格数
+!总网格数
     NGRID=0
     ALLOCATE(ARY_NGRID(NMAT))
     DO i=1,NMAT
@@ -137,10 +137,7 @@ PROGRAM test
             ENDDO
         ENDIF
     ENDDO
-    !WRITE(2,*) 'deltaL:'
-    !WRITE(2,400) (ARY_DELTAL(i),i=1,NGRID)
 400 FORMAT(E12.5)
-!裂变源迭代
     ALLOCATE(ARY_PHI(NGRID*G-G),ARY_F(NGRID*G-G),ARY_S(NGRID*G-G),ARY_Q(NGRID*G-G),ARY_TEMPPHI(NGRID*G-G),ARY_TEMPF(NGRID*G-G))
     ALLOCATE(ARY_A(2:(NGRID-1)),ARY_U(NGRID-1),ARY_C(NGRID-2),ARY_Y(NGRID-1))
     !设置迭代初值
@@ -153,10 +150,12 @@ PROGRAM test
         ENDDO
     ENDDO
     EPSILONK=10;EPSILONF=10
+!裂变源迭代
     DO WHILE(EPSILONK>=0.00001 .AND. EPSILONF>=0.00001)
         COUNT=0;EPSILONPHI=10
         WRITE(2,*) 'EPSILONPHI:'
         !WRITE(*,*) 'EPSILONPHI:'
+!散射源迭代
         DO WHILE(EPSILONPHI>=0.00001)
             ARY_TEMPPHI=ARY_PHI;EPSILONPHI=0;ARY_S=0;ARY_Q=0
             DO i=1,G
@@ -173,7 +172,6 @@ PROGRAM test
                     IF (j==1) THEN
                         ARY_C(j)=-MATRIX_DG(j+1,i)/ARY_DELTAL(j+1)
                         ARY_Y(j)=ARY_Q((i-1)*(NGRID-1)+j)
-                        !边界条件判定
                         IF (BCL==1) THEN
                             ARY_U(j)=((MATRIX_SIGMAT(j,i)-MATRIX_SIGMAS(((j-1)*G+i),i))*ARY_DELTAL(j)+(MATRIX_SIGMAT(j+1,i)-MATRIX_SIGMAS((j*G+i),i))*ARY_DELTAL(j+1))/2+MATRIX_DG(j,i)/ARY_DELTAL(j)+MATRIX_DG(j+1,i)/ARY_DELTAL(j+1)-(MATRIX_DG(j,i)/ARY_DELTAL(j)-((1-BETAL)/(2*(1+BETAL))))
                         ELSE IF (BCL==2) THEN
@@ -202,22 +200,14 @@ PROGRAM test
                     END IF
                 ENDDO
             ENDDO
-            !WRITE(2,500) 'F','S','Q','PHI'
-500 FORMAT(1X,4A12)
-            !WRITE(2,600) (ARY_F(i),ARY_S(i),ARY_Q(i),ARY_PHI(i),i=1,NGRID*G-G)
-            !WRITE(2,500) 'Y','U'
-            !WRITE(2,700) (ARY_Y(i),ARY_U(i),i=1,NGRID-1)
-600 FORMAT(1X,4E12.5)
-700 FORMAT(1X,2E12.5)
             DO i=1,NGRID*G-G
                 EPSILONPHI=EPSILONPHI+(ABS(ARY_PHI(i)-ARY_TEMPPHI(i)))
             ENDDO 
             COUNT=COUNT+1
             WRITE(2,101) COUNT,EPSILONPHI
             !WRITE(*,101) COUNT,EPSILONPHI
-101 FORMAT(I4,5X,E12.5)
         ENDDO
-        !更新keff
+        !更新keff,f
         ARY_TEMPF=ARY_F
         DO i=1,G
             DO j=1,NGRID-1
@@ -246,13 +236,16 @@ PROGRAM test
         WRITE(2,900) EPSILONK,EPSILONF
         !WRITE(*,800) 'EPSILONK','EPSILONF' 
         !WRITE(*,900) EPSILONK,EPSILONF
-800 FORMAT(1X,2A12)
-900 FORMAT(1X,2E12.5)
     ENDDO
     CALL CPU_TIME(TIME_END)
     WRITE(2,*) 'PHI:'
     WRITE(2,400) (ARY_PHI(i),i=1,NGRID*G-G)
     WRITE(2,*) 'Calculating time:',TIME_END-TIME_BEGIN
-    
+800 FORMAT(1X,2A12)
+900 FORMAT(1X,2E12.5)   
+101 FORMAT(I4,5X,E12.5)
+600 FORMAT(1X,4E12.5)
+700 FORMAT(1X,2E12.5)
+500 FORMAT(1X,4A12)
 END
   
