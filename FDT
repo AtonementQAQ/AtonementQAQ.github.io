@@ -141,7 +141,7 @@ PROGRAM test
     ALLOCATE(ARY_PHI(NGRID*G-G),ARY_F(NGRID*G-G),ARY_S(NGRID*G-G),ARY_Q(NGRID*G-G),ARY_TEMPPHI(NGRID*G-G),ARY_TEMPF(NGRID*G-G))
     ALLOCATE(ARY_A(2:(NGRID-1)),ARY_U(NGRID-1),ARY_C(NGRID-2),ARY_Y(NGRID-1))
     !设置迭代初值
-    KEFF=1;ARY_PHI=1000
+    KEFF=1;ARY_PHI=1E-05;ARY_F=0;QN=0;QO=0
     DO i=1,G
         DO j=1,NGRID-1
             DO n=1,G
@@ -149,11 +149,19 @@ PROGRAM test
             ENDDO
         ENDDO
     ENDDO
+    DO i=1,NGRID*G-G
+        Y=MOD(i,NGRID-1)
+        IF (Y==0)THEN
+            QN=QN+ARY_DELTAL(NGRID-1)*ARY_F(i)
+        ELSE
+            QN=QN+ARY_DELTAL(NGRID-1)*ARY_F(i)
+        ENDIF            
+    ENDDO        
     EPSILONK=10;EPSILONF=10
 !裂变源迭代
     DO WHILE(EPSILONK>=0.00001 .AND. EPSILONF>=0.00001)
         COUNT=0;EPSILONPHI=10
-        WRITE(2,*) 'EPSILONPHI:'
+        !WRITE(2,*) 'EPSILONPHI:'
         !WRITE(*,*) 'EPSILONPHI:'
 !散射源迭代
         DO WHILE(EPSILONPHI>=0.00001)
@@ -173,24 +181,24 @@ PROGRAM test
                         ARY_C(j)=-MATRIX_DG(j+1,i)/ARY_DELTAL(j+1)
                         ARY_Y(j)=ARY_Q((i-1)*(NGRID-1)+j)
                         IF (BCL==1) THEN
-                            ARY_U(j)=((MATRIX_SIGMAT(j,i)-MATRIX_SIGMAS(((j-1)*G+i),i))*ARY_DELTAL(j)+(MATRIX_SIGMAT(j+1,i)-MATRIX_SIGMAS((j*G+i),i))*ARY_DELTAL(j+1))/2+MATRIX_DG(j,i)/ARY_DELTAL(j)+MATRIX_DG(j+1,i)/ARY_DELTAL(j+1)-(MATRIX_DG(j,i)/ARY_DELTAL(j)-((1-BETAL)/(2*(1+BETAL))))
+                            ARY_U(j)=((MATRIX_SIGMAT(j,i)-MATRIX_SIGMAS(((j-1)*G+i),i))*ARY_DELTAL(j)+(MATRIX_SIGMAT(j+1,i)-MATRIX_SIGMAS((j*G+i),i))*ARY_DELTAL(j+1))/2+MATRIX_DG(j+1,i)/ARY_DELTAL(j+1)-((1-BETAL)/(2*(1+BETAL)))
                         ELSE IF (BCL==2) THEN
                             ARY_U(j)=((MATRIX_SIGMAT(j,i)-MATRIX_SIGMAS(((j-1)*G+i),i))*ARY_DELTAL(j)+(MATRIX_SIGMAT(j+1,i)-MATRIX_SIGMAS((j*G+i),i))*ARY_DELTAL(j+1))/2+MATRIX_DG(j,i)/ARY_DELTAL(j)+MATRIX_DG(j+1,i)/ARY_DELTAL(j+1)
                         ENDIF
                     ELSE IF (j==NGRID-1) THEN
                         ARY_A(j)=-MATRIX_DG(j,i)/(ARY_DELTAL(j)*ARY_U(j-1))
                         IF (BCR==1) THEN
-                            ARY_U(j)=((MATRIX_SIGMAT(j,i)-MATRIX_SIGMAS(((j-1)*G+i),i))*ARY_DELTAL(j)+(MATRIX_SIGMAT(j+1,i)-MATRIX_SIGMAS((j*G+i),i))*ARY_DELTAL(j+1))/2+MATRIX_DG(j,i)/ARY_DELTAL(j)+MATRIX_DG(j+1,i)/ARY_DELTAL(j+1)-MATRIX_DG(j+1,i)/(ARY_DELTAL(j+1)*((1-BETAR)*ARY_DELTAL(j+1)/MATRIX_DG(j+1,i)+1))-ARY_C(j-1)*ARY_A(j)
+                            ARY_U(j)=((MATRIX_SIGMAT(j,i)-MATRIX_SIGMAS(((j-1)*G+i),i))*ARY_DELTAL(j)+(MATRIX_SIGMAT(j+1,i)-MATRIX_SIGMAS((j*G+i),i))*ARY_DELTAL(j+1))/2+MATRIX_DG(j,i)/ARY_DELTAL(j)+MATRIX_DG(j+1,i)/ARY_DELTAL(j+1)-MATRIX_DG(j+1,i)/(ARY_DELTAL(j+1)*(1+(1-BETAR)*ARY_DELTAL(j+1)/(2*(1+BETAR)*MATRIX_DG(j+1,i))))-ARY_C(j-1)*ARY_A(j)
                         ELSE IF (BCR==2) THEN
                             ARY_U(j)=((MATRIX_SIGMAT(j,i)-MATRIX_SIGMAS(((j-1)*G+i),i))*ARY_DELTAL(j)+(MATRIX_SIGMAT(j+1,i)-MATRIX_SIGMAS((j*G+i),i))*ARY_DELTAL(j+1))/2+MATRIX_DG(j,i)/ARY_DELTAL(j)+MATRIX_DG(j+1,i)/ARY_DELTAL(j+1)-ARY_C(j-1)*ARY_A(j)
                         ENDIF
                         ARY_Y(j)=ARY_Q((i-1)*(NGRID-1)+j)-ARY_A(j)*ARY_Y(j-1)
                     ELSE
                         ARY_C(j)=-MATRIX_DG(j+1,i)/ARY_DELTAL(j+1)
-                        ARY_A(j)=-MATRIX_DG(j,i)/(ARY_DELTAL(j)*ARY_U(j-1))
+                        ARY_A(j)=-(MATRIX_DG(j,i)/ARY_DELTAL(j))/ARY_U(j-1)
                         ARY_U(j)=((MATRIX_SIGMAT(j,i)-MATRIX_SIGMAS(((j-1)*G+i),i))*ARY_DELTAL(j)+(MATRIX_SIGMAT(j+1,i)-MATRIX_SIGMAS((j*G+i),i))*ARY_DELTAL(j+1))/2+MATRIX_DG(j,i)/ARY_DELTAL(j)+MATRIX_DG(j+1,i)/ARY_DELTAL(j+1)-ARY_C(j-1)*ARY_A(j)
                         ARY_Y(j)=ARY_Q((i-1)*(NGRID-1)+j)-ARY_A(j)*ARY_Y(j-1)
-                    ENDIF           
+                    ENDIF
                 ENDDO
                 DO j=NGRID-1,1,-1
                     IF (j==NGRID-1) THEN
@@ -204,11 +212,12 @@ PROGRAM test
                 EPSILONPHI=EPSILONPHI+(ABS(ARY_PHI(i)-ARY_TEMPPHI(i)))
             ENDDO 
             COUNT=COUNT+1
-            WRITE(2,101) COUNT,EPSILONPHI
+            !WRITE(2,101) COUNT,EPSILONPHI
             !WRITE(*,101) COUNT,EPSILONPHI
         ENDDO
         !更新keff,f
         ARY_TEMPF=ARY_F
+        ARY_F=0
         DO i=1,G
             DO j=1,NGRID-1
                 DO n=1,G
@@ -216,24 +225,25 @@ PROGRAM test
                 ENDDO
             ENDDO
         ENDDO
+        !ARY_F=0.5*ARY_F
+        WRITE(2,800) 'F:','PHI'
+        WRITE(2,900) (ARY_F(i),ARY_PHI(i),i=1,NGRID*G-G)
         TEMP_KEFF=KEFF
-        QN=0;QO=0
+        QO=QN;QN=0
         DO i=1,NGRID*G-G
             Y=MOD(i,NGRID-1)
             IF (Y==0)THEN
                 QN=QN+ARY_DELTAL(NGRID-1)*ARY_F(i)
-                QO=QO+ARY_DELTAL(NGRID-1)*ARY_TEMPF(i)
             ELSE
-                QN=QN+ARY_DELTAL(Y)*ARY_F(i)
-                QO=QO+ARY_DELTAL(Y)*ARY_TEMPF(i)
+                QN=QN+ARY_DELTAL(NGRID-1)*ARY_F(i)
             ENDIF            
-        ENDDO
+        ENDDO        
         KEFF=TEMP_KEFF*QN/QO
         WRITE(2,*) 'keff:',KEFF,'QN:',QN,'QO:',QO
         EPSILONK=ABS((KEFF-TEMP_KEFF)/KEFF)
         EPSILONF=MAXVAL(ABS((ARY_F-ARY_TEMPF)/ARY_F))
-        WRITE(2,800) 'EPSILONK','EPSILONF' 
-        WRITE(2,900) EPSILONK,EPSILONF
+        !WRITE(2,800) 'EPSILONK','EPSILONF' 
+        !WRITE(2,900) EPSILONK,EPSILONF
         !WRITE(*,800) 'EPSILONK','EPSILONF' 
         !WRITE(*,900) EPSILONK,EPSILONF
     ENDDO
@@ -241,11 +251,11 @@ PROGRAM test
     WRITE(2,*) 'PHI:'
     WRITE(2,400) (ARY_PHI(i),i=1,NGRID*G-G)
     WRITE(2,*) 'Calculating time:',TIME_END-TIME_BEGIN
+    DEALLOCATE(ARY_DELTAL,ARY_PHI,ARY_F,ARY_S,ARY_Q,ARY_TEMPPHI,ARY_TEMPF,ARY_A,ARY_U,ARY_C,ARY_Y)
 800 FORMAT(1X,2A12)
 900 FORMAT(1X,2E12.5)   
 101 FORMAT(I4,5X,E12.5)
 600 FORMAT(1X,4E12.5)
 700 FORMAT(1X,2E12.5)
 500 FORMAT(1X,4A12)
-END
-  
+    END
