@@ -1,0 +1,38 @@
+import numpy as np
+from mpl_toolkits.mplot3d import Axes3D
+import matplotlib.pyplot as plt
+
+path_input=r'C:\Users\Shaoruizhi\Desktop\hydra_geometry.vtk'
+path_out=r'C:\Users\Shaoruizhi\Desktop\out'
+file = open(path_input, 'r')
+sizehint =2048
+position = 0
+lines = file.readlines(sizehint)
+
+a=np.ones((3*(len(lines)-6),3))
+for i in range(6,len(lines)):
+    b=lines[i].split()
+    a[3*(i-6)+0,0:3]=b[0:3]
+    a[3*(i-6)+1,0:3]=b[3:6]
+    a[3*(i-6)+2,0:3]=b[6:9]
+
+ax=plt.subplot(111,projection='3d')
+ax.scatter(a[:(3*(len(lines)-6)),0],a[:(3*(len(lines)-6)),1],a[:(3*(len(lines)-6)),2],c='k',marker='.')
+ax.set_zlabel('Z') #坐标轴
+ax.set_ylabel('Y')
+ax.set_xlabel('X')
+
+for i in range(1,5000):
+    lines = file.readlines(sizehint)
+    a=np.ones((3*(len(lines)),3))
+    for i in range(0,len(lines)):
+      if lines[i]=='\n':
+        break
+      else:
+        b=lines[i].split()
+        a[3*i+0,0:3]=b[0:3]
+        a[3*i+1,0:3]=b[3:6]
+        a[3*i+2,0:3]=b[6:9]
+    ax.scatter(a[:(3*(len(lines))),0],a[:(3*(len(lines))),1],a[:(3*(len(lines))),2],c='k',marker='.')
+plt.show()
+file.close()
