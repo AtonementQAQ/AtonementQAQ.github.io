@@ -1,0 +1,7 @@
+file = open('test.log', 'r')
+sizehint = 209715200   # 200M
+position = 0
+lines = file.readlines(sizehint)
+while not file.tell() - position < 0:
+    position = file.tell()
+    lines = file.readlines(sizehint)
