@@ -312,24 +312,25 @@ c=np.array([0.000000E+00,1.972235E+01,3.944471E+01,5.916706E+01,7.888941E+01,
 8.009383E+03,8.025480E+03,8.041578E+03,8.057675E+03,8.073772E+03,
 8.089869E+03,8.105966E+03,8.122063E+03,8.138160E+03,8.145780E+03,
 8.153400E+03,8.161021E+03,8.168641E+03,8.176260E+03])
-print(a.ndim)
-r= np.array((441,601,529))
-theta=np.array((441,601,529))
-z=np.array((441,601,529))
-for k in range(530):
-    for j in range(602):
+print(a.size)
+r= np.zeros((411,601,529))
+theta=np.zeros((411,601,529))
+z=np.zeros((411,601,529))
+for k in range(529):
+    for j in range(601):
         for i in range(411):
             r[i,j,k]=a[i]
-for k in range(530):
+for k in range(529):
     for i in range(411):
-        for j in range(602):
+        for j in range(601):
             theta[i,j,k]=b[j]
-for j in range(602):
+for j in range(601):
     for i in range(411):
-        for k in range(530):
+        for k in range(529):
             z[i,j,k]=c[k]
 x = r*np.cos(theta)
 y = r*np.sin(theta)
+sphere=np.empty((411,601,529))
 sphere = x+y < 2431*3
 fig = plt.figure()
 ax = fig.gca(projection='3d')
