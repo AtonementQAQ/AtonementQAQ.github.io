@@ -1,0 +1,37 @@
+import numpy as np
+
+path_array20=r'C:\Users\Shaoruizhi\Desktop\AP1000\array_20'
+path_array21=r'C:\Users\Shaoruizhi\Desktop\AP1000\array_21'
+
+# read array_20
+file=open(path_array20,'r')
+c=0
+array_20=np.zeros(19052)
+while c<19052:
+    b=np.array(file.readline().split(),dtype=int)
+    i=b.size
+    array_20[c:c+i]=b[:i]
+    c+=i
+file.close()
+
+# read array_21
+file=open(path_array21,'r')
+array_21=np.zeros(19052)
+c=0
+while c<19052:
+    temp=file.readline().split()
+    for i in range(len(temp)):
+        if temp[i]=='r':
+            n=int(temp[i-1])
+        elif len(temp[i])==12:
+            if n==0:
+                array_21[c]=float(temp[i])
+                c+=1
+            else:
+                for j in range(n):
+                    array_21[c+j]=float(temp[i])
+                c+=n
+                n=0
+file.close()
+
+
