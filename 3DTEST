@@ -1,0 +1,47 @@
+import numpy as np
+from mpl_toolkits.mplot3d import Axes3D
+import matplotlib.pyplot as plt
+import matplotlib.colors
+
+a=np.array([0.000000E+00,3.976666E+00,7.953333E+00,1.193000E+01,1.590667E+01,
+1.988333E+01,2.386000E+01,2.783666E+01,3.181333E+01,3.578999E+01,])
+b=np.array([0.000000E+00,1.608403E-03,3.216806E-03,4.825210E-03,6.433613E-03,
+3.687050E-01,3.703477E-01,3.719905E-01,3.736332E-01,3.752759E-01,
+5.914753E-01,5.931565E-01,5.948378E-01,5.965190E-01,5.982003E-01,
+9.101034E-01,9.117322E-01,9.133730E-01,9.150137E-01,9.166545E-01,
+1.000000E+00])
+b=b*2*np.pi
+c=np.array([0.000000E+00,1.972235E+01,3.944471E+01,5.916706E+01,7.888941E+01,
+9.861176E+01,1.183341E+02,1.380565E+02,1.577788E+02,1.775012E+02,])
+
+r= np.zeros((10,17,10))
+theta=np.zeros((10,17,10))
+z=np.zeros((10,17,10))
+for k in range(10):
+    for j in range(17):
+        for i in range(10):
+            r[i,j,k]=a[i]
+for k in range(10):
+    for i in range(10):
+        for j in range(17):
+            theta[i,j,k]=b[j]
+for j in range(17):
+    for i in range(10):
+        for k in range(10):
+            z[i,j,k]=c[k]
+x = r*np.cos(theta)
+y = r*np.sin(theta)
+c=np.ones((9,16,9))
+sphere = c<2
+
+# combine the color components
+
+
+fig = plt.figure()
+ax = fig.gca(projection='3d')
+ax.voxels(x, y, z, sphere,
+          facecolors=colors,
+          edgecolors=np.clip(2*colors - 0.5, 0, 1),  # brighter
+          linewidth=0.5)
+
+plt.show()
