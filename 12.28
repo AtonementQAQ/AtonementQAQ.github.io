@@ -1,0 +1,292 @@
+PROGRAM test
+    INTEGER::G,NMAT,NGRID,BCL,BCR,COUNT
+    INTEGER,DIMENSION(:),ALLOCATABLE::ARY_GRID,ARY_NGRID
+    REAL::KEFF,EPSILONK,EPSILONF,BETAL,BETAR,EPSILONPHI,TEMP,TEMP_KEFF,QN,QO,Y,TIME_BEGIN,TIME_END
+    REAL,DIMENSION(:),ALLOCATABLE::ARY_L,ARY_DELTAL,ARY_PHI,ARY_F,ARY_S,ARY_Q,ARY_A,ARY_U,ARY_C,ARY_Y,ARY_TEMPPHI,ARY_TEMPF,PHI0,PHIN,APHI
+    REAL,DIMENSION(:,:),ALLOCATABLE::MATRIX_SIGMAT,MATRIX_SIGMAF,MATRIX_SIGMAS,MATRIX_CHI,MATRIX_TEMPT,MATRIX_TEMPF,MATRIX_TEMPS,MATRIX_TEMPCHI,MATRIX_TEMPDG,MATRIX_DG
+!数据读取
+    CALL CPU_TIME(TIME_BEGIN)
+    OPEN(1,FILE='input',ACTION='READ')
+    OPEN(2,FILE='output',ACTION='WRITE')
+    READ(1,100) G
+    READ(1,100) NMAT
+    ALLOCATE(ARY_L(NMAT))
+    READ(1,*) (ARY_L(i),i=1,NMAT)
+    ALLOCATE(ARY_GRID(NMAT))
+    READ(1,*) (ARY_GRID(i),i=1,NMAT)
+100 FORMAT(I5)
+!总网格数
+    NGRID=0
+    ALLOCATE(ARY_NGRID(NMAT))
+    DO i=1,NMAT
+        NGRID=NGRID+ARY_GRID(i)
+        ARY_NGRID(i)=NGRID
+    ENDDO
+    ALLOCATE(MATRIX_TEMPT(NMAT,G),MATRIX_TEMPF(NMAT,G),MATRIX_TEMPS(NMAT*G,G),MATRIX_TEMPCHI(NMAT,G),MATRIX_TEMPDG(NMAT,G))
+    ALLOCATE(MATRIX_SIGMAT(NGRID,G),MATRIX_SIGMAF(NGRID,G),MATRIX_SIGMAS(NGRID*G,G),MATRIX_CHI(NGRID,G),MATRIX_DG(NGRID,G))
+!读取材料参数   
+    DO i=1,NMAT
+        READ(1,*)
+        READ(1,*) (MATRIX_TEMPDG(i,j),j=1,G)
+        READ(1,*) (MATRIX_TEMPT(i,j),j=1,G)
+        READ(1,*) (MATRIX_TEMPF(i,j),j=1,G)
+        DO n=1,G
+            READ(1,*) (MATRIX_TEMPS(G*i-G+n,j),j=1,G)
+        ENDDO
+        READ(1,*) (MATRIX_TEMPCHI(i,j),j=1,G)
+    ENDDO
+    DO i=1,G
+        DO j=1,NGRID
+            IF (j<=ARY_NGRID(1)) THEN
+            MATRIX_DG(j,i)=MATRIX_TEMPDG(1,i)
+            ELSE
+                DO n=2,NMAT
+                    IF (j>ARY_NGRID(n-1) .AND. j<=ARY_NGRID(n)) MATRIX_DG(j,i)=MATRIX_TEMPDG(n,i)
+                ENDDO
+            ENDIF
+        ENDDO
+    ENDDO
+    DEALLOCATE(MATRIX_TEMPDG)
+    DO i=1,G
+        DO j=1,NGRID
+            IF (j<=ARY_NGRID(1)) THEN
+            MATRIX_SIGMAT(j,i)=MATRIX_TEMPT(1,i)
+            ELSE
+                DO n=2,NMAT
+                    IF (j>ARY_NGRID(n-1) .AND. j<=ARY_NGRID(n)) MATRIX_SIGMAT(j,i)=MATRIX_TEMPT(n,i)
+                ENDDO
+            ENDIF
+        ENDDO
+    ENDDO
+    DEALLOCATE(MATRIX_TEMPT)
+    DO i=1,G
+        DO j=1,NGRID
+            IF (j<=ARY_NGRID(1)) THEN
+            MATRIX_SIGMAF(j,i)=MATRIX_TEMPF(1,i)
+            ELSE
+                DO n=2,NMAT
+                    IF (j>ARY_NGRID(n-1) .AND. j<=ARY_NGRID(n)) MATRIX_SIGMAF(j,i)=MATRIX_TEMPF(n,i)
+                ENDDO
+            ENDIF
+        ENDDO
+    ENDDO
+    DEALLOCATE(MATRIX_TEMPF)
+    DO i=1,G
+        DO j=1,NMAT
+            IF (j==1) THEN
+                MATRIX_SIGMAS(1:G,i)=MATRIX_TEMPS(1:G,i)
+                DO n=1,ARY_GRID(1)-1
+                    MATRIX_SIGMAS((n*G+1):(n+1)*G,i)=MATRIX_SIGMAS(1:G,i)
+                ENDDO
+            ELSE
+                DO n=1,ARY_GRID(j)
+                    MATRIX_SIGMAS(((ARY_NGRID(j-1)+n-1)*G+1):(ARY_NGRID(j-1)+n)*G,i)=MATRIX_TEMPS(((j-1)*G+1):j*G,i)
+                ENDDO
+            ENDIF
+        ENDDO
+    ENDDO
+    DEALLOCATE(MATRIX_TEMPS)
+    DO i=1,G
+        DO j=1,NGRID
+            IF (j<=ARY_NGRID(1)) THEN
+            MATRIX_CHI(j,i)=MATRIX_TEMPCHI(1,i)
+            ELSE
+                DO n=2,NMAT
+                    IF (j>ARY_NGRID(n-1) .AND. j<=ARY_NGRID(n)) MATRIX_CHI(j,i)=MATRIX_TEMPCHI(n,i)
+                ENDDO
+            ENDIF
+        ENDDO
+    ENDDO
+    DEALLOCATE(MATRIX_TEMPCHI)
+    READ(1,*)
+    READ(1,*) BCL,BCR
+    IF (BCL==1 .AND. BCR/=1) THEN
+        READ(1,*) BETAL
+    ELSE IF (BCL/=1 .AND. BCR==1) THEN
+        READ(1,*) BETAR
+    ELSE IF (BCL==1 .AND. BCR==1) THEN
+        READ(1,*) BETAL,BETAR
+    END IF
+!输出
+    WRITE(2,*) 'L:'
+    WRITE(2,200) (ARY_L(i),i=1,NMAT)
+    WRITE(2,*) 'GRID:'
+    WRITE(2,300) (ARY_GRID(i),i=1,NMAT)
+    WRITE(2,*) 'NGRID:'
+    WRITE(2,300) (ARY_NGRID(i),i=1,NMAT)
+    WRITE(2,202) 'DG:','SIGMAT:','SIGMAF:','CHI:'
+    WRITE(2,201) ((MATRIX_DG(i,j),j=1,G),(MATRIX_SIGMAT(i,j),j=1,G),(MATRIX_SIGMAF(i,j),j=1,G),(MATRIX_CHI(i,j),j=1,G),i=1,NGRID)
+    WRITE(2,*) 'SIGMAS:'
+    WRITE(2,200) ((MATRIX_SIGMAS(i,j),j=1,G),i=1,NGRID*G)
+200 FORMAT(1X,<G>E12.5)
+201 FORMAT(1X,<G>E12.5,<G>E12.5,<G>E12.5,<G>E12.5)
+202 FORMAT(1X,A12,<12*(G-1)>X,A12,<12*(G-1)>X,A12,<12*(G-1)>X,A12)    
+300 FORMAT(1X,<G>I5)
+!网格区间长度
+    ALLOCATE(ARY_DELTAL(NGRID))
+    DO i=1,NGRID
+        IF (i<=ARY_NGRID(1)) THEN
+            ARY_DELTAL(i)=ARY_L(1)/ARY_GRID(1)
+        ELSE
+            DO j=2,NMAT
+                IF (i>ARY_NGRID(j-1) .AND. i<=ARY_NGRID(j)) ARY_DELTAL(i)=ARY_L(j)/ARY_GRID(j)
+            ENDDO
+        ENDIF
+    ENDDO
+400 FORMAT(E12.5)
+    ALLOCATE(ARY_PHI(NGRID*G-G),ARY_F(NGRID*G-G),ARY_S(NGRID*G-G),ARY_Q(NGRID*G-G),ARY_TEMPPHI(NGRID*G-G),ARY_TEMPF(NGRID*G-G))
+    ALLOCATE(ARY_A(2:(NGRID-1)),ARY_U(NGRID-1),ARY_C(NGRID-2),ARY_Y(NGRID-1))
+    !设置迭代初值
+    KEFF=1;ARY_PHI=1E-05;ARY_F=0;QN=0;QO=0
+    DO i=1,G
+        DO j=1,NGRID-1
+            DO n=1,G
+                ARY_F((i-1)*(NGRID-1)+j)=ARY_F((i-1)*(NGRID-1)+j)+0.5*(MATRIX_CHI(j,i)*MATRIX_SIGMAF(j,n)*ARY_DELTAL(j)+MATRIX_CHI(j+1,i)*MATRIX_SIGMAF(j+1,n)*ARY_DELTAL(j+1))*ARY_PHI((n-1)*(NGRID-1)+j)
+            ENDDO
+        ENDDO
+    ENDDO
+    DO i=1,NGRID*G-G
+        Y=MOD(i,NGRID-1)
+        IF (Y==0)THEN
+            QN=QN+ARY_DELTAL(NGRID-1)*ARY_F(i)
+        ELSE
+            QN=QN+ARY_DELTAL(NGRID-1)*ARY_F(i)
+        ENDIF            
+    ENDDO        
+    EPSILONK=10;EPSILONF=10;COUNT=0
+!裂变源迭代
+    DO WHILE(EPSILONK>=0.000001 .OR. EPSILONF>=0.000001)
+        EPSILONPHI=10
+        COUNT=COUNT+1
+        !WRITE(2,*) 'EPSILONPHI:'
+        !WRITE(*,*) 'EPSILONPHI:'
+        !散射源迭代
+        DO WHILE(EPSILONPHI>=0.000001)
+            ARY_TEMPPHI=ARY_PHI;EPSILONPHI=0;ARY_S=0;ARY_Q=0
+            DO i=1,G
+                ARY_A=0;ARY_U=0;ARY_C=0;ARY_Y=0
+                DO j=1,NGRID-1
+                    DO n=1,G
+                        IF (n==i) THEN
+                            ARY_S((i-1)*(NGRID-1)+j)=ARY_S((i-1)*(NGRID-1)+j)
+                        ELSE 
+                            ARY_S((i-1)*(NGRID-1)+j)=ARY_S((i-1)*(NGRID-1)+j)+0.5*(MATRIX_SIGMAS(((j-1)*G+i),n)*ARY_DELTAL(j)+MATRIX_SIGMAS((j*G+i),n)*ARY_DELTAL(j+1))*ARY_PHI((n-1)*(NGRID-1)+j)
+                        ENDIF
+                    ENDDO
+                    ARY_Q((i-1)*(NGRID-1)+j)=ARY_F((i-1)*(NGRID-1)+j)/KEFF+ARY_S((i-1)*(NGRID-1)+j)
+                    IF (j==1) THEN
+                        ARY_C(j)=-MATRIX_DG(j+1,i)/ARY_DELTAL(j+1)
+                        ARY_Y(j)=ARY_Q((i-1)*(NGRID-1)+j)
+                        IF (BCL==1) THEN
+                            ARY_U(j)=((MATRIX_SIGMAT(j,i)-MATRIX_SIGMAS(((j-1)*G+i),i))*ARY_DELTAL(j)+(MATRIX_SIGMAT(j+1,i)-MATRIX_SIGMAS((j*G+i),i))*ARY_DELTAL(j+1))/2+MATRIX_DG(j+1,i)/ARY_DELTAL(j+1)-((1-BETAL)/(2*(1+BETAL)))
+                        ELSE IF (BCL==2) THEN
+                            ARY_U(j)=((MATRIX_SIGMAT(j,i)-MATRIX_SIGMAS(((j-1)*G+i),i))*ARY_DELTAL(j)+(MATRIX_SIGMAT(j+1,i)-MATRIX_SIGMAS((j*G+i),i))*ARY_DELTAL(j+1))/2+MATRIX_DG(j,i)/ARY_DELTAL(j)+MATRIX_DG(j+1,i)/ARY_DELTAL(j+1)
+                        ENDIF
+                    ELSE IF (j==NGRID-1) THEN
+                        ARY_A(j)=-MATRIX_DG(j,i)/(ARY_DELTAL(j)*ARY_U(j-1))
+                        IF (BCR==1) THEN
+                            ARY_U(j)=((MATRIX_SIGMAT(j,i)-MATRIX_SIGMAS(((j-1)*G+i),i))*ARY_DELTAL(j)+(MATRIX_SIGMAT(j+1,i)-MATRIX_SIGMAS((j*G+i),i))*ARY_DELTAL(j+1))/2+MATRIX_DG(j,i)/ARY_DELTAL(j)+MATRIX_DG(j+1,i)/ARY_DELTAL(j+1)-MATRIX_DG(j+1,i)/(ARY_DELTAL(j+1)*(1+(1-BETAR)*ARY_DELTAL(j+1)/(2*(1+BETAR)*MATRIX_DG(j+1,i))))-ARY_C(j-1)*ARY_A(j)
+                        ELSE IF (BCR==2) THEN
+                            ARY_U(j)=((MATRIX_SIGMAT(j,i)-MATRIX_SIGMAS(((j-1)*G+i),i))*ARY_DELTAL(j)+(MATRIX_SIGMAT(j+1,i)-MATRIX_SIGMAS((j*G+i),i))*ARY_DELTAL(j+1))/2+MATRIX_DG(j,i)/ARY_DELTAL(j)+MATRIX_DG(j+1,i)/ARY_DELTAL(j+1)-ARY_C(j-1)*ARY_A(j)
+                        ENDIF
+                        ARY_Y(j)=ARY_Q((i-1)*(NGRID-1)+j)-ARY_A(j)*ARY_Y(j-1)
+                    ELSE
+                        ARY_C(j)=-MATRIX_DG(j+1,i)/ARY_DELTAL(j+1)
+                        ARY_A(j)=-(MATRIX_DG(j,i)/ARY_DELTAL(j))/ARY_U(j-1)
+                        ARY_U(j)=((MATRIX_SIGMAT(j,i)-MATRIX_SIGMAS(((j-1)*G+i),i))*ARY_DELTAL(j)+(MATRIX_SIGMAT(j+1,i)-MATRIX_SIGMAS((j*G+i),i))*ARY_DELTAL(j+1))/2+MATRIX_DG(j,i)/ARY_DELTAL(j)+MATRIX_DG(j+1,i)/ARY_DELTAL(j+1)-ARY_C(j-1)*ARY_A(j)
+                        ARY_Y(j)=ARY_Q((i-1)*(NGRID-1)+j)-ARY_A(j)*ARY_Y(j-1)
+                    ENDIF
+                ENDDO
+                DO j=NGRID-1,1,-1
+                    IF (j==NGRID-1) THEN
+                        ARY_PHI((i-1)*(NGRID-1)+j)=ARY_Y(j)/ARY_U(j)
+                    ELSE
+                        ARY_PHI((i-1)*(NGRID-1)+j)=(ARY_Y(j)-ARY_C(j)*ARY_PHI((i-1)*(NGRID-1)+j+1))/ARY_U(j)
+                    END IF
+                ENDDO
+            ENDDO
+            DO i=1,NGRID*G-G
+                EPSILONPHI=EPSILONPHI+(ABS(ARY_PHI(i)-ARY_TEMPPHI(i)))
+            ENDDO 
+        ENDDO
+        !更新keff,f
+        ARY_TEMPF=ARY_F
+        ARY_F=0;EPSILONF=0
+        DO i=1,G
+            DO j=1,NGRID-1
+                DO n=1,G
+                    ARY_F((i-1)*(NGRID-1)+j)=ARY_F((i-1)*(NGRID-1)+j)+0.5*(MATRIX_CHI(j,i)*MATRIX_SIGMAF(j,n)*ARY_DELTAL(j)+MATRIX_CHI(j+1,i)*MATRIX_SIGMAF(j+1,n)*ARY_DELTAL(j+1))*ARY_PHI((n-1)*(NGRID-1)+j)
+                    IF (ARY_F((i-1)*(NGRID-1)+j)/=0) THEN
+                        IF (EPSILONF<ABS((ARY_F((i-1)*(NGRID-1)+j)-ARY_TEMPF((i-1)*(NGRID-1)+j))/ARY_F((i-1)*(NGRID-1)+j))) THEN
+                            EPSILONF=ABS((ARY_F((i-1)*(NGRID-1)+j)-ARY_TEMPF((i-1)*(NGRID-1)+j))/ARY_F((i-1)*(NGRID-1)+j))
+                        ENDIF
+                    ENDIF
+                ENDDO
+            ENDDO
+        ENDDO
+        !WRITE(2,*) 'f'
+        !WRITE(2,400) (ARY_F(i),i=1,NGRID*G-G)
+        TEMP_KEFF=KEFF
+        QO=QN;QN=0
+        DO i=1,NGRID*G-G
+            Y=MOD(i,NGRID-1)
+            IF (Y==0) THEN
+                QN=QN+ARY_DELTAL(NGRID-1)*ARY_F(i)
+            ELSE
+                QN=QN+ARY_DELTAL(Y)*ARY_F(i)
+            ENDIF
+        ENDDO  
+        KEFF=TEMP_KEFF*QN/QO
+        WRITE(2,800) 'QN','QO'
+        WRITE(2,900) QN,QO
+        WRITE(2,*) 'keff:'
+        WRITE(2,400) KEFF
+        EPSILONK=ABS((KEFF-TEMP_KEFF)/KEFF)
+        WRITE(2,801) COUNT,'EPSILONK','EPSILONF' 
+        WRITE(2,900) EPSILONK,EPSILONF
+        WRITE(*,801) COUNT,'EPSILONK','EPSILONF' 
+        WRITE(*,900) EPSILONK,EPSILONF
+    ENDDO
+    ALLOCATE(PHI0(G),PHIN(G))
+    PHI0=0;PHIN=0
+    IF (BCL==1) THEN
+        DO i =1,G
+            PHI0(i)=(((1-BETAL)*ARY_DELTAL(1)+2*(1+BETAL)*MATRIX_DG(1,i))*ARY_PHI((i-1)*(NGRID-1)+1))/(2*(1+BETAL)*MATRIX_DG(1,i))
+        ENDDO
+    ELSE IF (BCL==2) THEN
+        PHI0=0
+    ENDIF
+    IF (BCR==1) THEN
+        DO i =1,G
+            PHIN(i)=(2*(1+BETAR)*MATRIX_DG(NGRID,i))*ARY_PHI((i-1)*(NGRID-1)+NGRID-1)/((1-BETAR)*ARY_DELTAL(NGRID)+2*(1+BETAR)*MATRIX_DG(NGRID,i))
+        ENDDO
+    ELSE IF (BCR==2) THEN
+        PHIN=0
+    ENDIF
+    ALLOCATE(APHI(G*NGRID))
+    DO i=1,G
+        DO j=1,NGRID
+            IF (j==1) THEN
+                APHI((i-1)*NGRID+j)=(PHI0(i)+ARY_PHI((i-1)*(NGRID-1)+j))/2
+            ELSEIF (j==NGRID) THEN
+                APHI((i-1)*NGRID+j)=(PHIN(i)+ARY_PHI((i-1)*(NGRID-1)+j-1))/2
+            ELSE
+                APHI((i-1)*NGRID+j)=(ARY_PHI((i-1)*(NGRID-1)+j-1)+ARY_PHI((i-1)*(NGRID-1)+j))/2
+            ENDIF
+        ENDDO
+    ENDDO
+    CALL CPU_TIME(TIME_END)
+    WRITE(2,*) 'keff:',KEFF
+    WRITE(2,*) 'PHI:'
+    WRITE(2,400) (APHI(i),i=1,NGRID*G)
+    WRITE(2,*) 'Calculating time:',TIME_END-TIME_BEGIN
+    WRITE(*,*) 'Calculating time:',TIME_END-TIME_BEGIN
+    DEALLOCATE(ARY_DELTAL,ARY_PHI,ARY_F,ARY_S,ARY_Q,ARY_TEMPPHI,ARY_TEMPF,ARY_A,ARY_U,ARY_C,ARY_Y)
+800 FORMAT(1X,2A12)
+801 FORMAT(I3,2A12)
+900 FORMAT(4X,2E12.5)   
+101 FORMAT(I4,5X,E12.5)
+600 FORMAT(1X,4E12.5)
+700 FORMAT(1X,2E12.5)
+500 FORMAT(1X,4A12)
+    END
