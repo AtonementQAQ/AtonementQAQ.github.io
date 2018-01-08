@@ -506,23 +506,23 @@ for i in range(19052):
 #                    color[m,k,j]=array_20[i]
 
 # Prepare coordinates
- r= np.zeros((411,301,529))
- theta=np.zeros((411,301,529))
- z=np.zeros((411,301,529))
- for k in range(529):
-     for j in range(301):
-         for i in range(411):
-             r[i,j,k]=grid_r[i]
- for k in range(529):
-     for i in range(411):
-         for j in range(301):
-             theta[i,j,k]=grid_theta[j]
- for j in range(301):
-     for i in range(411):
-         for k in range(529):
-             z[i,j,k]=grid_z[k]
- x = r*np.cos(theta)
- y = r*np.sin(theta)
+r= np.zeros((411,301,529))
+theta=np.zeros((411,301,529))
+z=np.zeros((411,301,529))
+for k in range(529):
+    for j in range(301):
+        for i in range(411):
+            r[i,j,k]=grid_r[i]
+for k in range(529):
+    for i in range(411):
+        for j in range(301):
+            theta[i,j,k]=grid_theta[j]
+for j in range(301):
+    for i in range(411):
+        for k in range(529):
+            z[i,j,k]=grid_z[k]
+x = r*np.cos(theta)
+y = r*np.sin(theta)
 
 # Draw
 fig = plt.figure()
