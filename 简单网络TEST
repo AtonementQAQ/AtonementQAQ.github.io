@@ -1,0 +1,63 @@
+import random
+import numpy as np
+import tensorflow as tf
+
+class train():
+    def __init__(self,att,labels):
+        self.m=att.shape[0]
+        self.n=att.shape[1]
+        self.att=att
+        self.labels=labels
+    def next_batch(self,n):
+        if n>self.m :
+            print("错误：随机抽取的数据个数超过数据总数。")
+        else:
+            for i in range(0,n):
+                max=self.m-1
+                x=np.zeros((n,self.n))
+                y=np.zeros(n)
+                for j in range(0,self.n):
+                    x[i,j]=self.att[random.randint(0,max),j]
+                y[i]=self.labels[random.randint(0,max)]
+                return x,y
+
+class test():
+    def __init__(self,att,labels):
+        self.num=labels.shape[0]
+        self.att=att
+        self.labels=labels
+        
+class sample():
+     def __init__(self,tr_att,tr_labels,ts_att,ts_labels):
+         self.train=train(tr_att,tr_labels)
+         self.test=test(ts_att,ts_labels)
+
+         
+tr_labels=np.array([0,1,1])
+tr_att=np.array([[0,0,1],[0,1,1],[1,0,1]])
+ts_labels=np.array([0])
+ts_att=np.array([1,1,1])
+
+a=sample(tr_att,tr_labels,ts_att,ts_labels)
+x,y=a.train.next_batch(2)
+
+x=tf.placeholder(tf.float32,[None,3])
+W=tf.Variable(tf.zeros([3,2]))
+b=tf.Variable(tf.zeros([2]))
+y=tf.nn.softmax(tf.matmul(x,W)+b)
+y_=tf.placeholder("float",[None,2])
+cross_entropy = -tf.reduce_sum(y_*tf.log(y))
+train_step = tf.train.GradientDescentOptimizer(0.01).minimize(cross_entropy)
+init = tf.initialize_all_variables()
+
+sess = tf.Session()
+sess.run(init)
+
+for i in range(1000):
+  batch_xs, batch_ys =a.train.next_batch(2)
+  sess.run(train_step, feed_dict={x: batch_xs, y_: batch_ys})
+  
+correct_prediction = tf.equal(tf.argmax(y,1), tf.argmax(y_,1))
+accuracy = tf.reduce_mean(tf.cast(correct_prediction, "float"))
+print("准确率：\n",sess.run(accuracy, feed_dict={x: a.test.images, y_: a.test.labels}))
+         
