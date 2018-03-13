@@ -12,14 +12,15 @@ class train():
         if n>self.m :
             print("错误：随机抽取的数据个数超过数据总数。")
         else:
+            x=np.zeros((n,self.n),int)
+            y=np.zeros(n,int)
             for i in range(0,n):
-                max=self.m-1
-                x=np.zeros((n,self.n))
-                y=np.zeros(n)
+                r=random.randint(0,self.m-1)
                 for j in range(0,self.n):
-                    x[i,j]=self.att[random.randint(0,max),j]
-                y[i]=self.labels[random.randint(0,max)]
-                return x,y
+                    x[i,j]=self.att[r,j]
+                y[i]=self.labels[r]
+            y.shape=(2,1)
+            return x,y
 
 class test():
     def __init__(self,att,labels):
@@ -33,19 +34,19 @@ class sample():
          self.test=test(ts_att,ts_labels)
 
          
-tr_labels=np.array([0,1,1])
+tr_labels=np.array([[0],[1],[1]])
 tr_att=np.array([[0,0,1],[0,1,1],[1,0,1]])
-ts_labels=np.array([0])
-ts_att=np.array([1,1,1])
+ts_labels=np.array([[0]])
+ts_att=np.array([[1,1,1]])
 
 a=sample(tr_att,tr_labels,ts_att,ts_labels)
-x,y=a.train.next_batch(2)
 
 x=tf.placeholder(tf.float32,[None,3])
-W=tf.Variable(tf.zeros([3,2]))
-b=tf.Variable(tf.zeros([2]))
+W=tf.Variable(tf.zeros([3,1]))
+b=tf.Variable(tf.zeros([1]))
 y=tf.nn.softmax(tf.matmul(x,W)+b)
-y_=tf.placeholder("float",[None,2])
+y_=tf.placeholder("float",[None,1])
+
 cross_entropy = -tf.reduce_sum(y_*tf.log(y))
 train_step = tf.train.GradientDescentOptimizer(0.01).minimize(cross_entropy)
 init = tf.initialize_all_variables()
@@ -54,10 +55,10 @@ sess = tf.Session()
 sess.run(init)
 
 for i in range(1000):
-  batch_xs, batch_ys =a.train.next_batch(2)
-  sess.run(train_step, feed_dict={x: batch_xs, y_: batch_ys})
+    batch_xs, batch_ys =a.train.next_batch(2)
+    sess.run(train_step, feed_dict={x: batch_xs, y_: batch_ys})
   
 correct_prediction = tf.equal(tf.argmax(y,1), tf.argmax(y_,1))
 accuracy = tf.reduce_mean(tf.cast(correct_prediction, "float"))
-print("准确率：\n",sess.run(accuracy, feed_dict={x: a.test.images, y_: a.test.labels}))
+print("准确率：\n",sess.run(accuracy, feed_dict={x: a.test.att, y_: a.test.labels}))
          
